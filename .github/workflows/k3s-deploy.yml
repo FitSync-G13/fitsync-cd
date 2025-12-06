@@ -83,6 +83,7 @@ jobs:
   install-k3s:
     if: ${{ inputs.deployment_step == 'install-k3s' || inputs.deployment_step == 'full-deployment' }}
     needs: get-infrastructure-info
+    runs-on: [self-hosted, linux, aws, k3s]
     environment: ${{ inputs.environment }}
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install.yml@main
     with:
