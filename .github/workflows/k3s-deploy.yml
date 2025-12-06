@@ -22,6 +22,36 @@ on:
           - 'install-istio'
           - 'full-deployment'
         default: 'install-k3s'
+      get_infrastructure_info:
+        description: 'Get infrastructure information'
+        required: false
+        type: boolean
+        default: true
+      install_k3s_masters:
+        description: 'Install K3s on master nodes'
+        required: false
+        type: boolean
+        default: false
+      install_k3s_workers:
+        description: 'Install K3s on worker nodes'
+        required: false
+        type: boolean
+        default: false
+      verify_cluster:
+        description: 'Verify K3s cluster status'
+        required: false
+        type: boolean
+        default: false
+      install_cilium:
+        description: 'Install Cilium CNI'
+        required: false
+        type: boolean
+        default: false
+      install_istio:
+        description: 'Install Istio service mesh'
+        required: false
+        type: boolean
+        default: false
       k3s_version:
         description: 'K3s version (leave empty for latest)'
         required: false
@@ -34,6 +64,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
+    if: ${{ inputs.get_infrastructure_info }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -102,9 +133,9 @@ jobs:
         echo "K3s API DNS: $K3S_API_DNS"
 
   install-k3s:
-    if: ${{ inputs.deployment_step == 'install-k3s' || inputs.deployment_step == 'full-deployment' }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster }}
     needs: get-infrastructure-info
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install.yml@master
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install-modular.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       k3s_version: ${{ inputs.k3s_version || 'latest' }}
@@ -113,11 +144,14 @@ jobs:
       k3s_api_dns: ${{ needs.get-infrastructure-info.outputs.k3s_api_dns }}
       aws_region: ${{ vars.AWS_REGION }}
       environment: ${{ inputs.environment }}
+      install_masters: ${{ inputs.install_k3s_masters }}
+      install_workers: ${{ inputs.install_k3s_workers }}
+      verify_cluster: ${{ inputs.verify_cluster }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   install-cilium:
-    if: ${{ inputs.deployment_step == 'install-cilium' || inputs.deployment_step == 'full-deployment' }}
+    if: ${{ inputs.install_cilium }}
     needs: [get-infrastructure-info, install-k3s]
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
@@ -129,7 +163,7 @@ jobs:
         echo "This would call FitSync-G13/fitsync-cd-templates/.github/workflows/cilium-install.yml"
 
   install-istio:
-    if: ${{ inputs.deployment_step == 'install-istio' || inputs.deployment_step == 'full-deployment' }}
+    if: ${{ inputs.install_istio }}
     needs: [get-infrastructure-info, install-k3s, install-cilium]
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
