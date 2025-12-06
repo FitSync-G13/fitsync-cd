@@ -42,6 +42,27 @@ jobs:
       k3s_api_dns: ${{ steps.get-instances.outputs.k3s_api_dns }}
     
     steps:
+    - name: Setup tools
+      run: |
+        # Install AWS CLI if not present
+        if ! command -v aws &> /dev/null; then
+          echo "Installing AWS CLI..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          sudo apt-get update && sudo apt-get install -y unzip
+          unzip awscliv2.zip
+          sudo ./aws/install
+        fi
+        
+        # Install jq if not present
+        if ! command -v jq &> /dev/null; then
+          echo "Installing jq..."
+          sudo apt-get install -y jq
+        fi
+        
+        # Verify installations
+        aws --version
+        jq --version
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
