@@ -12,11 +12,6 @@ on:
           - 'staging'
           - 'development'
         default: 'production'
-      get_infrastructure_info:
-        description: 'Get infrastructure information'
-        required: false
-        type: boolean
-        default: true
       install_k3s_masters:
         description: 'Install K3s on master nodes'
         required: false
@@ -54,7 +49,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
-    if: ${{ inputs.get_infrastructure_info }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster || inputs.install_cilium || inputs.install_istio }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
