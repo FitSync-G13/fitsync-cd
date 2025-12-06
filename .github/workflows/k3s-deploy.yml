@@ -54,7 +54,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
-    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster || inputs.install_cilium || inputs.install_istio }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster || inputs.install_cilium || inputs.install_istio || inputs.configure_bastion }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -132,7 +132,7 @@ jobs:
         echo "Bastion: $BASTION"
 
   install-k3s:
-    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster || inputs.configure_bastion }}
     needs: get-infrastructure-info
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install-modular.yml@master
     with:
