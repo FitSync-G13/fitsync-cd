@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
-    runs-on: [self-hosted, linux, aws, k3s]
+    runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
       master_instances: ${{ steps.get-instances.outputs.master_instances }}
@@ -120,7 +120,7 @@ jobs:
     if: ${{ inputs.deployment_step == 'install-cilium' || inputs.deployment_step == 'full-deployment' }}
     needs: [get-infrastructure-info, install-k3s]
     environment: ${{ inputs.environment }}
-    runs-on: [self-hosted, linux, aws, k3s]
+    runs-on: ubuntu-latest
     steps:
     - name: Placeholder for Cilium installation
       run: |
@@ -132,7 +132,7 @@ jobs:
     if: ${{ inputs.deployment_step == 'install-istio' || inputs.deployment_step == 'full-deployment' }}
     needs: [get-infrastructure-info, install-k3s, install-cilium]
     environment: ${{ inputs.environment }}
-    runs-on: [self-hosted, linux, aws, k3s]
+    runs-on: ubuntu-latest
     steps:
     - name: Placeholder for Istio installation
       run: |
