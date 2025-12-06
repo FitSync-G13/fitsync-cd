@@ -37,6 +37,11 @@ on:
         required: false
         type: boolean
         default: false
+      configure_bastion:
+        description: 'Configure bastion with kubectl, helm, and Cilium CLI'
+        required: false
+        type: boolean
+        default: false
       k3s_version:
         description: 'K3s version (leave empty for latest)'
         required: false
@@ -56,6 +61,7 @@ jobs:
       master_instances: ${{ steps.get-instances.outputs.master_instances }}
       worker_instances: ${{ steps.get-instances.outputs.worker_instances }}
       k3s_api_dns: ${{ steps.get-instances.outputs.k3s_api_dns }}
+      bastion_instance: ${{ steps.get-instances.outputs.bastion_instance }}
     
     steps:
     - name: Setup tools
@@ -108,14 +114,22 @@ jobs:
           --query 'LoadBalancers[?contains(LoadBalancerName, `${{ vars.PROJECT_NAME }}`) && contains(LoadBalancerName, `${{ vars.SPOKE_ENV }}`) && contains(LoadBalancerName, `k3s-api`)].DNSName' \
           --output text)
         
+        # Get bastion instance
+        BASTION=$(aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Role,Values=bastion" "Name=tag:Env,Values=${{ vars.HUB_ENV }}" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[].InstanceId' \
+          --output text)
+        
         echo "master_instances=${MASTERS%,}" >> $GITHUB_OUTPUT
         echo "worker_instances=${WORKERS%,}" >> $GITHUB_OUTPUT
         echo "k3s_api_dns=$K3S_API_DNS" >> $GITHUB_OUTPUT
+        echo "bastion_instance=$BASTION" >> $GITHUB_OUTPUT
         
         echo "Environment: ${{ inputs.environment }}"
         echo "Masters: ${MASTERS%,}"
         echo "Workers: ${WORKERS%,}"
         echo "K3s API DNS: $K3S_API_DNS"
+        echo "Bastion: $BASTION"
 
   install-k3s:
     if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster }}
@@ -131,6 +145,8 @@ jobs:
       install_masters: ${{ inputs.install_k3s_masters }}
       install_workers: ${{ inputs.install_k3s_workers }}
       verify_cluster: ${{ inputs.verify_cluster }}
+      configure_bastion: ${{ inputs.configure_bastion }}
+      bastion_instance: ${{ needs.get-infrastructure-info.outputs.bastion_instance }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
