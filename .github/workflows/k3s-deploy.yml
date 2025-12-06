@@ -83,7 +83,7 @@ jobs:
   install-k3s:
     if: ${{ inputs.deployment_step == 'install-k3s' || inputs.deployment_step == 'full-deployment' }}
     needs: get-infrastructure-info
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install.yml@main
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       k3s_version: ${{ inputs.k3s_version || 'latest' }}
