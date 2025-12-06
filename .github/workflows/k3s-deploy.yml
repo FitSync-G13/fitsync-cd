@@ -125,7 +125,6 @@ jobs:
   install-k3s:
     if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster }}
     needs: get-infrastructure-info
-    environment: ${{ inputs.environment }}
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install-modular.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
@@ -133,7 +132,6 @@ jobs:
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       worker_instances: ${{ needs.get-infrastructure-info.outputs.worker_instances }}
       k3s_api_dns: ${{ needs.get-infrastructure-info.outputs.k3s_api_dns }}
-      aws_region: ${{ vars.AWS_REGION }}
       environment: ${{ inputs.environment }}
       install_masters: ${{ inputs.install_k3s_masters }}
       install_workers: ${{ inputs.install_k3s_workers }}
