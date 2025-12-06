@@ -12,16 +12,6 @@ on:
           - 'staging'
           - 'development'
         default: 'production'
-      deployment_step:
-        description: 'Select deployment step to run'
-        required: true
-        type: choice
-        options:
-          - 'install-k3s'
-          - 'install-cilium'
-          - 'install-istio'
-          - 'full-deployment'
-        default: 'install-k3s'
       get_infrastructure_info:
         description: 'Get infrastructure information'
         required: false
@@ -135,6 +125,7 @@ jobs:
   install-k3s:
     if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster }}
     needs: get-infrastructure-info
+    environment: ${{ inputs.environment }}
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install-modular.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
