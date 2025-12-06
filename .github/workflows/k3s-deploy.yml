@@ -1,0 +1,120 @@
+name: FitSync K3s Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - 'production'
+          - 'staging'
+          - 'development'
+        default: 'production'
+      deployment_step:
+        description: 'Select deployment step to run'
+        required: true
+        type: choice
+        options:
+          - 'install-k3s'
+          - 'install-cilium'
+          - 'install-istio'
+          - 'full-deployment'
+        default: 'install-k3s'
+      k3s_version:
+        description: 'K3s version (leave empty for latest)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  get-infrastructure-info:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      master_instances: ${{ steps.get-instances.outputs.master_instances }}
+      worker_instances: ${{ steps.get-instances.outputs.worker_instances }}
+      k3s_api_dns: ${{ steps.get-instances.outputs.k3s_api_dns }}
+    
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ vars.AWS_REGION }}
+        role-session-name: GitHubActions-GetInfraInfo
+
+    - name: Get infrastructure information
+      id: get-instances
+      run: |
+        echo "Getting FitSync infrastructure information for environment: ${{ inputs.environment }}"
+        
+        # Get master instances
+        MASTERS=$(aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Role,Values=k3s-master" "Name=tag:Env,Values=${{ vars.SPOKE_ENV }}" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[].InstanceId' \
+          --output text | tr '\t' ',')
+        
+        # Get worker instances
+        WORKERS=$(aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Role,Values=k3s-worker" "Name=tag:Env,Values=${{ vars.SPOKE_ENV }}" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[].InstanceId' \
+          --output text | tr '\t' ',')
+        
+        # Get K3s API load balancer DNS
+        K3S_API_DNS=$(aws elbv2 describe-load-balancers \
+          --query 'LoadBalancers[?contains(LoadBalancerName, `${{ vars.PROJECT_NAME }}`) && contains(LoadBalancerName, `${{ vars.SPOKE_ENV }}`) && contains(LoadBalancerName, `k3s-api`)].DNSName' \
+          --output text)
+        
+        echo "master_instances=${MASTERS%,}" >> $GITHUB_OUTPUT
+        echo "worker_instances=${WORKERS%,}" >> $GITHUB_OUTPUT
+        echo "k3s_api_dns=$K3S_API_DNS" >> $GITHUB_OUTPUT
+        
+        echo "Environment: ${{ inputs.environment }}"
+        echo "Masters: ${MASTERS%,}"
+        echo "Workers: ${WORKERS%,}"
+        echo "K3s API DNS: $K3S_API_DNS"
+
+  install-k3s:
+    if: ${{ inputs.deployment_step == 'install-k3s' || inputs.deployment_step == 'full-deployment' }}
+    needs: get-infrastructure-info
+    environment: ${{ inputs.environment }}
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install.yml@main
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      k3s_version: ${{ inputs.k3s_version || 'latest' }}
+      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      worker_instances: ${{ needs.get-infrastructure-info.outputs.worker_instances }}
+      k3s_api_dns: ${{ needs.get-infrastructure-info.outputs.k3s_api_dns }}
+      aws_region: ${{ vars.AWS_REGION }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  install-cilium:
+    if: ${{ inputs.deployment_step == 'install-cilium' || inputs.deployment_step == 'full-deployment' }}
+    needs: [get-infrastructure-info, install-k3s]
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Placeholder for Cilium installation
+      run: |
+        echo "Cilium installation will be implemented next"
+        echo "Environment: ${{ inputs.environment }}"
+        echo "This would call FitSync-G13/fitsync-cd-templates/.github/workflows/cilium-install.yml"
+
+  install-istio:
+    if: ${{ inputs.deployment_step == 'install-istio' || inputs.deployment_step == 'full-deployment' }}
+    needs: [get-infrastructure-info, install-k3s, install-cilium]
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Placeholder for Istio installation
+      run: |
+        echo "Istio installation will be implemented next"
+        echo "Environment: ${{ inputs.environment }}"
+        echo "This would call FitSync-G13/fitsync-cd-templates/.github/workflows/istio-install.yml"
