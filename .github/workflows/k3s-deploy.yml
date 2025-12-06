@@ -136,7 +136,7 @@ jobs:
 
   install-cilium:
     if: ${{ inputs.install_cilium }}
-    needs: [get-infrastructure-info, install-k3s]
+    needs: get-infrastructure-info
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
     steps:
@@ -148,7 +148,7 @@ jobs:
 
   install-istio:
     if: ${{ inputs.install_istio }}
-    needs: [get-infrastructure-info, install-k3s, install-cilium]
+    needs: [get-infrastructure-info, install-cilium]
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
     steps:
