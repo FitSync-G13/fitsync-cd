@@ -142,7 +142,7 @@ jobs:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
-      cilium_version: '1.18.4'
+      cilium_version: '0.16.26'
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
