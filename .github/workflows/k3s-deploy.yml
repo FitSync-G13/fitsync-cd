@@ -207,9 +207,6 @@ jobs:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
-      domain_name: ${{ vars.DOMAIN_NAME }}
-      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
-      cert_email: ${{ vars.CERT_EMAIL }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
