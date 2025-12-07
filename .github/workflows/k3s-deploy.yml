@@ -52,6 +52,11 @@ on:
         required: false
         type: boolean
         default: false
+      deploy_observability:
+        description: 'Deploy Observability stack'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -59,7 +64,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
-    if: ${{ inputs.deploy_full_stack || inputs.install_k3s || inputs.install_cilium || inputs.install_istio || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_istio_gateway || inputs.deploy_sample_app }}
+    if: ${{ inputs.deploy_full_stack || inputs.install_k3s || inputs.install_cilium || inputs.install_istio || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_istio_gateway || inputs.deploy_sample_app || inputs.deploy_observability}}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -216,3 +221,12 @@ jobs:
       subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      
+  deploy-observability:
+    if: ${{ always() && (inputs.deploy_full_stack || inputs.deploy_observability) }}
+    needs: [get-infrastructure-info, deploy-sample-app]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/observability-stack.yml@install-observ
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      environment: ${{ inputs.environment }}
