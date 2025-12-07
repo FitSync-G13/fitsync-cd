@@ -42,6 +42,11 @@ on:
         required: false
         type: string
         default: ''
+      cilium_cli_version:
+        description: 'Cilium CLI version (leave empty for latest)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   id-token: write
@@ -123,7 +128,7 @@ jobs:
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install-modular.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
-      k3s_version: ${{ inputs.k3s_version || 'latest' }}
+      k3s_version: ${{ inputs.k3s_version }}
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       worker_instances: ${{ needs.get-infrastructure-info.outputs.worker_instances }}
       k3s_api_dns: ${{ needs.get-infrastructure-info.outputs.k3s_api_dns }}
@@ -142,7 +147,7 @@ jobs:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
-      cilium_version: '0.16.26'
+      cilium_cli_version: ${{ inputs.cilium_cli_version }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
