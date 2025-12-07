@@ -67,6 +67,11 @@ on:
         required: false
         type: string
         default: ''
+      cert_manager_version:
+        description: 'cert-manager version (leave empty for latest)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   id-token: write
@@ -190,7 +195,7 @@ jobs:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
-      cert_manager_version: "1.16.2"
+      cert_manager_version: ${{ inputs.cert_manager_version }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
