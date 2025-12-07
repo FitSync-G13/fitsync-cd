@@ -86,8 +86,6 @@ jobs:
       master_instances: ${{ steps.get-instances.outputs.master_instances }}
       worker_instances: ${{ steps.get-instances.outputs.worker_instances }}
       k3s_api_dns: ${{ steps.get-instances.outputs.k3s_api_dns }}
-      domain_name: ${{ vars.DOMAIN_NAME }}
-      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
     
     steps:
     - name: Setup tools
@@ -209,8 +207,8 @@ jobs:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
-      domain_name: ${{ needs.get-infrastructure-info.outputs.domain_name }}
-      subdomain_prefix: ${{ needs.get-infrastructure-info.outputs.subdomain_prefix }}
+      domain_name: ${{ vars.DOMAIN_NAME }}
+      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
       cert_email: ${{ vars.CERT_EMAIL }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
@@ -224,8 +222,8 @@ jobs:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
-      domain_name: ${{ needs.get-infrastructure-info.outputs.domain_name }}
-      subdomain_prefix: ${{ needs.get-infrastructure-info.outputs.subdomain_prefix }}
+      domain_name: ${{ vars.DOMAIN_NAME }}
+      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
@@ -237,7 +235,7 @@ jobs:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
-      domain_name: ${{ needs.get-infrastructure-info.outputs.domain_name }}
-      subdomain_prefix: ${{ needs.get-infrastructure-info.outputs.subdomain_prefix }}
+      domain_name: ${{ vars.DOMAIN_NAME }}
+      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
