@@ -37,6 +37,16 @@ on:
         required: false
         type: boolean
         default: false
+      deploy_sample_app:
+        description: 'Deploy Bookinfo sample application'
+        required: false
+        type: boolean
+        default: false
+      enable_mtls:
+        description: 'Enable mTLS for sample app (STRICT mode)'
+        required: false
+        type: boolean
+        default: true
       k3s_version:
         description: 'K3s version (leave empty for latest)'
         required: false
@@ -54,7 +64,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
-    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster || inputs.install_cilium || inputs.install_istio }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster || inputs.install_cilium || inputs.install_istio || inputs.deploy_sample_app }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -153,12 +163,23 @@ jobs:
 
   install-istio:
     if: ${{ inputs.install_istio }}
-    needs: [get-infrastructure-info, install-cilium]
-    environment: ${{ inputs.environment }}
-    runs-on: ubuntu-latest
-    steps:
-    - name: Placeholder for Istio installation
-      run: |
-        echo "Istio installation will be implemented next"
-        echo "Environment: ${{ inputs.environment }}"
-        echo "This would call FitSync-G13/fitsync-cd-templates/.github/workflows/istio-install.yml"
+    needs: get-infrastructure-info
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-install.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      environment: ${{ inputs.environment }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  deploy-sample-app:
+    if: ${{ inputs.deploy_sample_app }}
+    needs: [get-infrastructure-info, install-istio]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-sample-app.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      environment: ${{ inputs.environment }}
+      enable_mtls: ${{ inputs.enable_mtls }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
