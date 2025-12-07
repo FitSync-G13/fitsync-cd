@@ -217,6 +217,7 @@ jobs:
   deploy-istio-gateway:
     if: ${{ inputs.deploy_istio_gateway }}
     needs: get-infrastructure-info
+    environment: ${{ inputs.environment }}
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-gateway-https.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
@@ -230,6 +231,7 @@ jobs:
   deploy-sample-app:
     if: ${{ inputs.deploy_sample_app && !cancelled() }}
     needs: get-infrastructure-info
+    environment: ${{ inputs.environment }}
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-sample-app.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
