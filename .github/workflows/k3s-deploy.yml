@@ -184,7 +184,7 @@ jobs:
 
   install-cert-manager:
     if: ${{ inputs.install_cert_manager }}
-    needs: [get-infrastructure-info, install-istio]
+    needs: get-infrastructure-info
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/cert-manager-install.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
@@ -196,14 +196,14 @@ jobs:
 
   create-wildcard-cert:
     if: ${{ inputs.create_wildcard_cert }}
-    needs: [get-infrastructure-info, install-cert-manager]
+    needs: get-infrastructure-info
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/wildcard-cert.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
       domain_name: ${{ vars.DOMAIN_NAME }}
-      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX }}
+      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
       cert_email: ${{ vars.CERT_EMAIL }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
@@ -211,26 +211,26 @@ jobs:
 
   deploy-istio-gateway:
     if: ${{ inputs.deploy_istio_gateway }}
-    needs: [get-infrastructure-info, create-wildcard-cert]
+    needs: get-infrastructure-info
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-gateway-https.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
       domain_name: ${{ vars.DOMAIN_NAME }}
-      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX }}
+      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   deploy-sample-app:
     if: ${{ inputs.deploy_sample_app && !cancelled() }}
-    needs: [get-infrastructure-info, deploy-istio-gateway]
+    needs: get-infrastructure-info
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-sample-app.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       environment: ${{ inputs.environment }}
       domain_name: ${{ vars.DOMAIN_NAME }}
-      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX }}
+      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
