@@ -173,8 +173,8 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   deploy-sample-app:
-    if: ${{ inputs.deploy_sample_app }}
-    needs: [get-infrastructure-info, install-istio]
+    if: ${{ inputs.deploy_sample_app && !cancelled() }}
+    needs: get-infrastructure-info
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-sample-app.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
