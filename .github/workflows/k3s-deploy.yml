@@ -74,7 +74,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
-    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster || inputs.install_cilium || inputs.install_istio || inputs.deploy_sample_app }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.verify_cluster || inputs.install_cilium || inputs.install_istio || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_istio_gateway || inputs.deploy_sample_app }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
