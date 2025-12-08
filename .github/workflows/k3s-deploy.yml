@@ -145,7 +145,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   install-k3s-workers:
-    if: ${{ inputs.install_k3s_workers }}
+    if: ${{ always() && inputs.install_k3s_workers }}
     needs: [get-infrastructure-info, install-k3s-masters]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install-modular.yml@master
     with:
