@@ -52,6 +52,21 @@ on:
         required: false
         type: boolean
         default: false
+      setup_database:
+        description: 'Setup PostgreSQL + Redis with TLS'
+        required: false
+        type: boolean
+        default: false
+      postgres_version:
+        description: 'PostgreSQL version'
+        required: false
+        type: string
+        default: '15'
+      redis_version:
+        description: 'Redis version'
+        required: false
+        type: string
+        default: '7'
 
 permissions:
   id-token: write
@@ -59,7 +74,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
-    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.install_cilium || inputs.install_istio || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_istio_gateway || inputs.deploy_sample_app }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.install_cilium || inputs.install_istio || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_istio_gateway || inputs.deploy_sample_app || inputs.setup_database }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -233,3 +248,16 @@ jobs:
       subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  setup-database:
+    if: ${{ always() && inputs.setup_database }}
+    needs: [get-infrastructure-info]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/database-setup.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      environment: ${{ inputs.environment }}
+      postgres_version: ${{ inputs.postgres_version }}
+      redis_version: ${{ inputs.redis_version }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
