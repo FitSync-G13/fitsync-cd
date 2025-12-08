@@ -12,13 +12,13 @@ on:
           - 'staging'
           - 'development'
         default: 'production'
-      deploy_full_stack:
-        description: 'Deploy complete stack (K3s → Cilium → Istio → cert-manager → Gateway → Sample App)'
+      install_k3s_masters:
+        description: 'Install K3s masters'
         required: false
         type: boolean
         default: false
-      install_k3s:
-        description: 'Install K3s cluster (masters + workers)'
+      install_k3s_workers:
+        description: 'Install K3s workers'
         required: false
         type: boolean
         default: false
@@ -59,7 +59,7 @@ permissions:
 
 jobs:
   get-infrastructure-info:
-    if: ${{ inputs.deploy_full_stack || inputs.install_k3s || inputs.install_cilium || inputs.install_istio || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_istio_gateway || inputs.deploy_sample_app }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.install_cilium || inputs.install_istio || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_istio_gateway || inputs.deploy_sample_app }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -127,8 +127,8 @@ jobs:
         echo "Workers: ${WORKERS%,}"
         echo "K3s API DNS: $K3S_API_DNS"
 
-  install-k3s:
-    if: ${{ inputs.deploy_full_stack || inputs.install_k3s }}
+  install-k3s-masters:
+    if: ${{ inputs.install_k3s_masters }}
     needs: get-infrastructure-info
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install-modular.yml@master
     with:
@@ -139,14 +139,31 @@ jobs:
       k3s_api_dns: ${{ needs.get-infrastructure-info.outputs.k3s_api_dns }}
       environment: ${{ inputs.environment }}
       install_masters: true
+      install_workers: false
+      verify_cluster: false
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  install-k3s-workers:
+    if: ${{ inputs.install_k3s_workers }}
+    needs: [get-infrastructure-info, install-k3s-masters]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-install-modular.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      k3s_version: ''
+      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      worker_instances: ${{ needs.get-infrastructure-info.outputs.worker_instances }}
+      k3s_api_dns: ${{ needs.get-infrastructure-info.outputs.k3s_api_dns }}
+      environment: ${{ inputs.environment }}
+      install_masters: false
       install_workers: true
       verify_cluster: true
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   install-cilium:
-    if: ${{ always() && (inputs.deploy_full_stack || inputs.install_cilium) }}
-    needs: [get-infrastructure-info, install-k3s]
+    if: ${{ always() && inputs.install_cilium }}
+    needs: [get-infrastructure-info, install-k3s-workers]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/cilium-install.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
@@ -157,7 +174,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   install-istio:
-    if: ${{ always() && (inputs.deploy_full_stack || inputs.install_istio) }}
+    if: ${{ always() && inputs.install_istio }}
     needs: [get-infrastructure-info, install-cilium]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-install.yml@master
     with:
@@ -168,7 +185,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   install-cert-manager:
-    if: ${{ always() && (inputs.deploy_full_stack || inputs.install_cert_manager) }}
+    if: ${{ always() && inputs.install_cert_manager }}
     needs: [get-infrastructure-info, install-istio]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/cert-manager-install.yml@master
     with:
@@ -180,7 +197,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   create-wildcard-cert:
-    if: ${{ always() && (inputs.deploy_full_stack || inputs.create_wildcard_cert) }}
+    if: ${{ always() && inputs.create_wildcard_cert }}
     needs: [get-infrastructure-info, install-cert-manager]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/wildcard-cert.yml@master
     with:
@@ -192,7 +209,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
   deploy-istio-gateway:
-    if: ${{ always() && (inputs.deploy_full_stack || inputs.deploy_istio_gateway) }}
+    if: ${{ always() && inputs.deploy_istio_gateway }}
     needs: [get-infrastructure-info, create-wildcard-cert]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-gateway-https.yml@master
     with:
@@ -205,7 +222,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   deploy-sample-app:
-    if: ${{ always() && (inputs.deploy_full_stack || inputs.deploy_sample_app) }}
+    if: ${{ always() && inputs.deploy_sample_app }}
     needs: [get-infrastructure-info, deploy-istio-gateway]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-sample-app.yml@master
     with:
