@@ -47,26 +47,16 @@ on:
         required: false
         type: boolean
         default: false
-      deploy_sample_app:
-        description: 'Deploy Bookinfo sample application'
-        required: false
-        type: boolean
-        default: false
       setup_database:
         description: 'Setup PostgreSQL + Redis with TLS'
         required: false
         type: boolean
         default: false
-      postgres_version:
-        description: 'PostgreSQL version'
+      deploy_sample_app:
+        description: 'Deploy Bookinfo sample application'
         required: false
-        type: string
-        default: '15'
-      redis_version:
-        description: 'Redis version'
-        required: false
-        type: string
-        default: '7'
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -236,9 +226,22 @@ jobs:
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
+  setup-database:
+    if: ${{ always() && inputs.setup_database }}
+    needs: [get-infrastructure-info]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/database-setup.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      environment: ${{ inputs.environment }}
+      postgres_version: '15'
+      redis_version: '7'
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
   deploy-sample-app:
     if: ${{ always() && inputs.deploy_sample_app }}
-    needs: [get-infrastructure-info, deploy-istio-gateway]
+    needs: [get-infrastructure-info, deploy-istio-gateway, setup-database]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-sample-app.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
@@ -248,16 +251,3 @@ jobs:
       subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-
-  setup-database:
-    if: ${{ always() && inputs.setup_database }}
-    needs: [get-infrastructure-info]
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/database-setup.yml@master
-    with:
-      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
-      environment: ${{ inputs.environment }}
-      postgres_version: ${{ inputs.postgres_version }}
-      redis_version: ${{ inputs.redis_version }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
