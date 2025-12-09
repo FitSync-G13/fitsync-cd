@@ -1,0 +1,113 @@
+name: Observability Stack Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'GitHub environment (non-prod/prod)'
+        required: true
+        type: choice
+        options:
+          - non-prod
+          - prod
+        default: non-prod
+      observe_instances:
+        description: 'Optional: comma-separated observe node instance IDs (overrides auto-discovery)'
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  get-observe-instances:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      observe_instances: ${{ steps.collect.outputs.observe_instances }}
+      obs_env: ${{ steps.set-env.outputs.obs_env }}
+
+    steps:
+    - name: Setup tools
+      run: |
+        if ! command -v aws &> /dev/null; then
+          echo "Installing AWS CLI..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          sudo apt-get update && sudo apt-get install -y unzip
+          unzip awscliv2.zip
+          sudo ./aws/install
+        fi
+        if ! command -v jq &> /dev/null; then
+          echo "Installing jq..."
+          sudo apt-get update && sudo apt-get install -y jq
+        fi
+        aws --version
+        jq --version
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ vars.AWS_REGION }}
+        role-session-name: GitHubActions-GetObserveNodes
+
+    - name: Select observability spoke env
+      id: set-env
+      run: |
+        if [ "${{ inputs.environment }}" = "prod" ]; then
+          OBS_ENV="${{ vars.OBS_SPOKE_ENV_PROD }}"
+        else
+          OBS_ENV="${{ vars.OBS_SPOKE_ENV_NON_PROD }}"
+        fi
+
+        if [ -z "$OBS_ENV" ]; then
+          echo "OBS_ENV not set; define vars.OBS_SPOKE_ENV_PROD and vars.OBS_SPOKE_ENV_NON_PROD"
+          exit 1
+        fi
+
+        echo "obs_env=$OBS_ENV" >> $GITHUB_OUTPUT
+        echo "Using OBS_ENV=$OBS_ENV"
+
+    - name: Collect observe instances
+      id: collect
+      run: |
+        if [ -n "${{ inputs.observe_instances }}" ]; then
+          echo "Using provided observe_instances input"
+          echo "observe_instances=${{ inputs.observe_instances }}" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "Discovering observe nodes by tags Project=${{ vars.PROJECT_NAME }}, Env=${{ steps.set-env.outputs.obs_env }}, Role in [k3s-master,k3s-worker]"
+        MASTERS=$(aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Env,Values=${{ steps.set-env.outputs.obs_env }}" "Name=tag:Role,Values=k3s-master" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[].InstanceId' \
+          --output text | tr '\t' ',')
+
+        WORKERS=$(aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Env,Values=${{ steps.set-env.outputs.obs_env }}" "Name=tag:Role,Values=k3s-worker" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[].InstanceId' \
+          --output text | tr '\t' ',')
+
+        OBSERVE="${MASTERS},${WORKERS}"
+        OBSERVE="${OBSERVE#,}"
+        OBSERVE="${OBSERVE%,}"
+
+        if [ -z "$OBSERVE" ]; then
+          echo "No observe instances found; ensure tags Project=${{ vars.PROJECT_NAME }}, Env=${{ steps.set-env.outputs.obs_env }}, Role=k3s-master/worker exist."
+          exit 1
+        fi
+
+        echo "observe_instances=$OBSERVE" >> $GITHUB_OUTPUT
+        echo "Discovered observe instances: $OBSERVE"
+
+  deploy-observability:
+    needs: get-observe-instances
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/observability-stack.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-obs
+      observe_instances: ${{ needs.get-observe-instances.outputs.observe_instances }}
+      environment: ${{ inputs.environment }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
