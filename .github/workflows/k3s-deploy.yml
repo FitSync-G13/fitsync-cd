@@ -57,6 +57,11 @@ on:
         required: false
         type: boolean
         default: false
+      deploy_observability:
+        description: 'Deploy Observability stack'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -249,5 +254,16 @@ jobs:
       environment: ${{ inputs.environment }}
       domain_name: ${{ vars.DOMAIN_NAME }}
       subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      
+  deploy-observability:
+    if: ${{ always() && (inputs.deploy_full_stack || inputs.deploy_observability) }}
+    needs: [get-infrastructure-info, deploy-sample-app]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/observability-stack.yml@install-observ
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      observe_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      environment: ${{ inputs.environment }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
