@@ -229,12 +229,13 @@ jobs:
   setup-database:
     if: ${{ always() && inputs.setup_database }}
     needs: [get-infrastructure-info]
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/database-setup.yml@master
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/database-setup-enhanced.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       environment: ${{ inputs.environment }}
       postgres_version: '15'
       redis_version: '7'
+      database_names: 'userdb,trainingdb,scheduledb,progressdb'
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
