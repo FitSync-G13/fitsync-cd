@@ -57,11 +57,6 @@ on:
         required: false
         type: boolean
         default: false
-      ecr_credential_provider_version:
-        description: 'ECR credential provider version (default: latest)'
-        required: false
-        type: string
-        default: 'latest'
 
 permissions:
   id-token: write
@@ -144,7 +139,7 @@ jobs:
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       k3s_version: ''
-      ecr_credential_provider_version: ${{ inputs.ecr_credential_provider_version }}
+      ecr_credential_provider_version: 'latest'
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       worker_instances: ${{ needs.get-infrastructure-info.outputs.worker_instances }}
       k3s_api_dns: ${{ needs.get-infrastructure-info.outputs.k3s_api_dns }}
@@ -162,7 +157,7 @@ jobs:
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       k3s_version: ''
-      ecr_credential_provider_version: ${{ inputs.ecr_credential_provider_version }}
+      ecr_credential_provider_version: 'latest'
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       worker_instances: ${{ needs.get-infrastructure-info.outputs.worker_instances }}
       k3s_api_dns: ${{ needs.get-infrastructure-info.outputs.k3s_api_dns }}
