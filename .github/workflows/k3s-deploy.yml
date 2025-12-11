@@ -256,7 +256,7 @@ jobs:
       environment: ${{ inputs.environment }}
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
       helm_chart_version: 'main'
-      namespace: 'fitsync'
+      namespace: 'default'
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
