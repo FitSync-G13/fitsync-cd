@@ -1,0 +1,156 @@
+name: FitSync OpenSearch K3s Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - 'production'
+          - 'staging'
+          - 'development'
+        default: 'production'
+      install_k3s_masters:
+        description: 'Install K3s masters'
+        required: false
+        type: boolean
+        default: false
+      install_k3s_workers:
+        description: 'Install K3s workers'
+        required: false
+        type: boolean
+        default: false
+      deploy_opensearch:
+        description: 'Deploy OpenSearch cluster'
+        required: false
+        type: boolean
+        default: false
+      opensearch_version:
+        description: 'OpenSearch version'
+        required: false
+        type: string
+        default: '2.19.4'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  get-opensearch-infrastructure:
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.deploy_opensearch }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      opensearch_master_instances: ${{ steps.get-instances.outputs.opensearch_master_instances }}
+      opensearch_worker_instances: ${{ steps.get-instances.outputs.opensearch_worker_instances }}
+      opensearch_nlb_dns: ${{ steps.get-instances.outputs.opensearch_nlb_dns }}
+    
+    steps:
+    - name: Setup tools
+      run: |
+        # Install AWS CLI if not present
+        if ! command -v aws &> /dev/null; then
+          echo "Installing AWS CLI..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          sudo apt-get update && sudo apt-get install -y unzip
+          unzip awscliv2.zip
+          sudo ./aws/install
+        fi
+        
+        # Install jq if not present
+        if ! command -v jq &> /dev/null; then
+          echo "Installing jq..."
+          sudo apt-get install -y jq
+        fi
+        
+        # Verify installations
+        aws --version
+        jq --version
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ vars.AWS_REGION }}
+        role-session-name: GitHubActions-GetOpenSearchInfra
+
+    - name: Get OpenSearch infrastructure information
+      id: get-instances
+      run: |
+        echo "Getting OpenSearch infrastructure information for environment: ${{ inputs.environment }}"
+        
+        # Get OpenSearch master instances
+        OPENSEARCH_MASTERS=$(aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Role,Values=opensearch-master" "Name=tag:Env,Values=${{ vars.SPOKE_ENV }}" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[].InstanceId' \
+          --output text | tr '\t' ',')
+        
+        # Get OpenSearch worker instances
+        OPENSEARCH_WORKERS=$(aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Role,Values=opensearch-worker" "Name=tag:Env,Values=${{ vars.SPOKE_ENV }}" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[].InstanceId' \
+          --output text | tr '\t' ',')
+        
+        # Get OpenSearch internal load balancer DNS
+        OPENSEARCH_NLB_DNS=$(aws elbv2 describe-load-balancers \
+          --query 'LoadBalancers[?contains(LoadBalancerName, `${{ vars.PROJECT_NAME }}`) && contains(LoadBalancerName, `${{ vars.SPOKE_ENV }}`) && contains(LoadBalancerName, `opensearch`)].DNSName' \
+          --output text)
+        
+        echo "opensearch_master_instances=${OPENSEARCH_MASTERS%,}" >> $GITHUB_OUTPUT
+        echo "opensearch_worker_instances=${OPENSEARCH_WORKERS%,}" >> $GITHUB_OUTPUT
+        echo "opensearch_nlb_dns=$OPENSEARCH_NLB_DNS" >> $GITHUB_OUTPUT
+        
+        echo "Environment: ${{ inputs.environment }}"
+        echo "OpenSearch Masters: ${OPENSEARCH_MASTERS%,}"
+        echo "OpenSearch Workers: ${OPENSEARCH_WORKERS%,}"
+        echo "OpenSearch NLB DNS: $OPENSEARCH_NLB_DNS"
+
+  install-opensearch-k3s-masters:
+    if: ${{ inputs.install_k3s_masters }}
+    needs: get-opensearch-infrastructure
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-opensearch-install.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-opensearch-cluster
+      k3s_version: ''
+      master_instances: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_master_instances }}
+      worker_instances: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_worker_instances }}
+      k3s_api_dns: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_nlb_dns }}
+      environment: ${{ inputs.environment }}
+      install_masters: true
+      install_workers: false
+      verify_cluster: false
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  install-opensearch-k3s-workers:
+    if: ${{ always() && inputs.install_k3s_workers }}
+    needs: [get-opensearch-infrastructure, install-opensearch-k3s-masters]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/k3s-opensearch-install.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-opensearch-cluster
+      k3s_version: ''
+      master_instances: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_master_instances }}
+      worker_instances: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_worker_instances }}
+      k3s_api_dns: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_nlb_dns }}
+      environment: ${{ inputs.environment }}
+      install_masters: false
+      install_workers: true
+      verify_cluster: true
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  deploy-opensearch-cluster:
+    if: ${{ always() && inputs.deploy_opensearch }}
+    needs: [get-opensearch-infrastructure, install-opensearch-k3s-workers]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/opensearch-deploy.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-opensearch-cluster
+      master_instances: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_master_instances }}
+      environment: ${{ inputs.environment }}
+      opensearch_version: ${{ inputs.opensearch_version }}
+      cert_manager_version: ''
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
