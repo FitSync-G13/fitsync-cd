@@ -73,7 +73,17 @@ on:
         type: boolean
         default: false
       enable_opensearch_logging:
-        description: 'Enable OpenSearch logging with Fluent Bit (independent step)'
+        description: 'Enable OpenSearch logging with Fluent Bit'
+        required: false
+        type: boolean
+        default: false
+      install_cilium_monitoring:
+        description: 'Install Cilium CNI with Hubble and metrics enabled'
+        required: false
+        type: boolean
+        default: false
+      install_prometheus_grafana:
+        description: 'Install Prometheus and Grafana for monitoring'
         required: false
         type: boolean
         default: false
@@ -200,47 +210,9 @@ jobs:
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
-  install-cilium-monitoring:
-    if: ${{ always() && inputs.install_cilium_monitoring }}
-    needs: [get-infrastructure-info, install-k3s-workers]
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/cilium-monitoring-install.yml@master
-    with:
-      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
-      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
-      environment: ${{ inputs.environment }}
-      cilium_cli_version: ''
-      enable_hubble: true
-      enable_metrics: true
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-
-  install-prometheus-grafana:
-    if: ${{ always() && inputs.install_prometheus_grafana }}
-    needs: [get-infrastructure-info, install-cilium-monitoring, deploy-istio-gateway]
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/prometheus-grafana-install.yml@master
-    with:
-      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
-      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
-      environment: ${{ inputs.environment }}
-      domain_name: ${{ vars.DOMAIN_NAME }}
-      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-
-  install-istio:
-    if: ${{ always() && inputs.install_istio }}
-    needs: [get-infrastructure-info, install-cilium, install-cilium-monitoring]
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-install.yml@master
-    with:
-      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
-      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
-      environment: ${{ inputs.environment }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-
   install-cert-manager:
     if: ${{ always() && inputs.install_cert_manager }}
-    needs: [get-infrastructure-info, install-istio]
+    needs: [get-infrastructure-info, install-cilium, install-cilium-monitoring]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/cert-manager-install.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
@@ -250,9 +222,20 @@ jobs:
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
+  install-istio:
+    if: ${{ always() && inputs.install_istio }}
+    needs: [get-infrastructure-info, install-cert-manager]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-install.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      environment: ${{ inputs.environment }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
   create-wildcard-cert:
     if: ${{ always() && inputs.create_wildcard_cert }}
-    needs: [get-infrastructure-info, install-cert-manager]
+    needs: [get-infrastructure-info, install-istio]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/wildcard-cert.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
@@ -307,6 +290,33 @@ jobs:
     if: ${{ always() && inputs.deploy_sample_app }}
     needs: [get-infrastructure-info, deploy-istio-gateway, setup-database]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/istio-sample-app.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      environment: ${{ inputs.environment }}
+      domain_name: ${{ vars.DOMAIN_NAME }}
+      subdomain_prefix: ${{ vars.SUBDOMAIN_PREFIX || '' }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  install-cilium-monitoring:
+    if: ${{ always() && inputs.install_cilium_monitoring }}
+    needs: [get-infrastructure-info, install-k3s-workers]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/cilium-monitoring-install.yml@master
+    with:
+      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+      master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
+      environment: ${{ inputs.environment }}
+      cilium_cli_version: ''
+      enable_hubble: true
+      enable_metrics: true
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  install-prometheus-grafana:
+    if: ${{ always() && inputs.install_prometheus_grafana }}
+    needs: [get-infrastructure-info, install-cilium-monitoring, deploy-istio-gateway]
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/prometheus-grafana-install.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-cluster
       master_instances: ${{ needs.get-infrastructure-info.outputs.master_instances }}
