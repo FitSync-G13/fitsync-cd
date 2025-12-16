@@ -1,0 +1,79 @@
+name: Update Service Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: 'Service to update'
+        required: true
+        type: choice
+        options:
+          - 'user-service'
+          - 'api-gateway'
+          - 'training-service'
+          - 'progress-service'
+          - 'notification-service'
+          - 'schedule-service'
+      image_tag:
+        description: 'New image tag'
+        required: true
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - 'development'
+          - 'production'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  update-deployment:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ vars.AWS_REGION }}
+        role-session-name: GitHubActions-Deploy-Update
+
+    - name: Get master instances
+      id: get-instances
+      run: |
+        MASTERS=$(aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Role,Values=k3s-master" "Name=tag:Env,Values=${{ vars.SPOKE_ENV }}" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[].InstanceId' \
+          --output text | tr '\t' ',')
+        
+        echo "master_instances=${MASTERS%,}" >> $GITHUB_OUTPUT
+        echo "Found masters: ${MASTERS%,}"
+
+    - name: Update deployment
+      run: |
+        MASTER_INSTANCES="${{ steps.get-instances.outputs.master_instances }}"
+        FIRST_MASTER=$(echo $MASTER_INSTANCES | cut -d',' -f1)
+        
+        if [ -z "$FIRST_MASTER" ]; then
+          echo "❌ No master instances found"
+          exit 1
+        fi
+        
+        echo "🚀 Updating ${{ inputs.service_name }} with tag: ${{ inputs.image_tag }}"
+        
+        aws ssm send-command \
+          --instance-ids "$FIRST_MASTER" \
+          --document-name "AWS-RunShellScript" \
+          --parameters "commands=[
+            \"export KUBECONFIG=/etc/rancher/k3s/k3s.yaml\",
+            \"kubectl set image deployment/${{ inputs.service_name }} ${{ inputs.service_name }}=074094370475.dkr.ecr.us-east-2.amazonaws.com/fitsync-${{ inputs.service_name }}:${{ inputs.image_tag }} -n default\",
+            \"kubectl rollout status deployment/${{ inputs.service_name }} -n default --timeout=300s\",
+            \"echo '✅ Updated ${{ inputs.service_name }} to ${{ inputs.image_tag }}'\"
+          ]" \
+          --wait-for-completion \
+          --output text
