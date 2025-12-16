@@ -1,4 +1,4 @@
-name: FitSync OpenSearch K3s Deployment
+name: FitSync OpenSearch K3s Deployment (Helm-based)
 
 on:
   workflow_dispatch:
@@ -42,13 +42,8 @@ on:
         required: false
         type: boolean
         default: false
-      deploy_opensearch_operator:
-        description: 'Deploy OpenSearch Operator'
-        required: false
-        type: boolean
-        default: false
-      deploy_opensearch_cluster:
-        description: 'Deploy OpenSearch Cluster'
+      deploy_opensearch_helm:
+        description: 'Deploy OpenSearch using Helm (official chart)'
         required: false
         type: boolean
         default: false
@@ -57,6 +52,16 @@ on:
         required: false
         type: boolean
         default: false
+      opensearch_version:
+        description: 'OpenSearch version (leave empty for latest)'
+        required: false
+        type: string
+        default: ''
+      opensearch_dashboards_version:
+        description: 'OpenSearch Dashboards version (leave empty for latest)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   id-token: write
@@ -64,7 +69,7 @@ permissions:
 
 jobs:
   get-opensearch-infrastructure:
-    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.install_ebs_csi_driver || inputs.create_opensearch_storage || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_opensearch_operator || inputs.deploy_opensearch_cluster || inputs.expose_opensearch }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.install_ebs_csi_driver || inputs.create_opensearch_storage || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_opensearch_helm || inputs.expose_opensearch }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -212,31 +217,22 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-  deploy-opensearch-operator:
-    if: ${{ always() && inputs.deploy_opensearch_operator }}
+  deploy-opensearch-helm:
+    if: ${{ always() && inputs.deploy_opensearch_helm }}
     needs: [get-opensearch-infrastructure, create-wildcard-cert]
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/opensearch-operator.yml@master
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/opensearch-helm-deploy.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-opensearch-cluster
       master_instances: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_master_instances }}
       environment: ${{ inputs.environment }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-
-  deploy-opensearch-cluster:
-    if: ${{ always() && inputs.deploy_opensearch_cluster }}
-    needs: [get-opensearch-infrastructure, deploy-opensearch-operator]
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/opensearch-cluster.yml@master
-    with:
-      cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-opensearch-cluster
-      master_instances: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_master_instances }}
-      environment: ${{ inputs.environment }}
+      opensearch_version: ${{ inputs.opensearch_version }}
+      opensearch_dashboards_version: ${{ inputs.opensearch_dashboards_version }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   expose-opensearch:
     if: ${{ always() && inputs.expose_opensearch }}
-    needs: [get-opensearch-infrastructure, deploy-opensearch-cluster]
+    needs: [get-opensearch-infrastructure, deploy-opensearch-helm]
     uses: FitSync-G13/fitsync-cd-templates/.github/workflows/opensearch-expose.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-opensearch-cluster
