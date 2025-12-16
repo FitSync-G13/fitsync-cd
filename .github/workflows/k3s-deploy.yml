@@ -77,6 +77,16 @@ on:
         required: false
         type: boolean
         default: false
+      install_cilium_monitoring:
+        description: 'Install Cilium CNI with Hubble and metrics enabled'
+        required: false
+        type: boolean
+        default: false
+      install_prometheus_grafana:
+        description: 'Install Prometheus and Grafana for monitoring'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
