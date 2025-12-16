@@ -1,4 +1,4 @@
-name: FitSync OpenSearch K3s Deployment (Helm-based)
+name: FitSync OpenSearch K3s Deployment (Gateway API)
 
 on:
   workflow_dispatch:
@@ -47,8 +47,8 @@ on:
         required: false
         type: boolean
         default: false
-      expose_opensearch:
-        description: 'Expose OpenSearch services'
+      expose_opensearch_gateway:
+        description: 'Expose OpenSearch via Gateway API'
         required: false
         type: boolean
         default: false
@@ -69,7 +69,7 @@ permissions:
 
 jobs:
   get-opensearch-infrastructure:
-    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.install_ebs_csi_driver || inputs.create_opensearch_storage || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_opensearch_helm || inputs.expose_opensearch }}
+    if: ${{ inputs.install_k3s_masters || inputs.install_k3s_workers || inputs.install_ebs_csi_driver || inputs.create_opensearch_storage || inputs.install_cert_manager || inputs.create_wildcard_cert || inputs.deploy_opensearch_helm || inputs.expose_opensearch_gateway }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -80,7 +80,6 @@ jobs:
     steps:
     - name: Setup tools
       run: |
-        # Install AWS CLI if not present
         if ! command -v aws &> /dev/null; then
           echo "Installing AWS CLI..."
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
@@ -89,13 +88,11 @@ jobs:
           sudo ./aws/install
         fi
         
-        # Install jq if not present
         if ! command -v jq &> /dev/null; then
           echo "Installing jq..."
           sudo apt-get install -y jq
         fi
         
-        # Verify installations
         aws --version
         jq --version
 
@@ -111,19 +108,16 @@ jobs:
       run: |
         echo "Getting OpenSearch infrastructure information for environment: ${{ inputs.environment }}"
         
-        # Get OpenSearch master instances
         OPENSEARCH_MASTERS=$(aws ec2 describe-instances \
           --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Role,Values=opensearch-master" "Name=tag:Env,Values=${{ vars.SPOKE_ENV }}" "Name=instance-state-name,Values=running" \
           --query 'Reservations[].Instances[].InstanceId' \
           --output text | tr '\t' ',')
         
-        # Get OpenSearch worker instances
         OPENSEARCH_WORKERS=$(aws ec2 describe-instances \
           --filters "Name=tag:Project,Values=${{ vars.PROJECT_NAME }}" "Name=tag:Role,Values=opensearch-worker" "Name=tag:Env,Values=${{ vars.SPOKE_ENV }}" "Name=instance-state-name,Values=running" \
           --query 'Reservations[].Instances[].InstanceId' \
           --output text | tr '\t' ',')
         
-        # Get OpenSearch internal load balancer DNS
         OPENSEARCH_NLB_DNS=$(aws elbv2 describe-load-balancers \
           --query 'LoadBalancers[?contains(LoadBalancerName, `${{ vars.PROJECT_NAME }}`) && contains(LoadBalancerName, `${{ vars.SPOKE_ENV }}`) && contains(LoadBalancerName, `opensearch`)].DNSName' \
           --output text)
@@ -230,10 +224,10 @@ jobs:
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
-  expose-opensearch:
-    if: ${{ always() && inputs.expose_opensearch }}
+  expose-opensearch-gateway:
+    if: ${{ always() && inputs.expose_opensearch_gateway }}
     needs: [get-opensearch-infrastructure, deploy-opensearch-helm]
-    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/opensearch-expose.yml@master
+    uses: FitSync-G13/fitsync-cd-templates/.github/workflows/opensearch-gateway-expose.yml@master
     with:
       cluster_name: ${{ vars.PROJECT_NAME }}-${{ inputs.environment }}-opensearch-cluster
       master_instances: ${{ needs.get-opensearch-infrastructure.outputs.opensearch_master_instances }}
