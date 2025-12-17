@@ -27,13 +27,13 @@ on:
         required: false
         type: boolean
         default: false
-      install_istio:
-        description: 'Install Istio service mesh'
+      install_cert_manager:
+        description: 'Install cert-manager'
         required: false
         type: boolean
         default: false
-      install_cert_manager:
-        description: 'Install cert-manager'
+      install_istio:
+        description: 'Install Istio service mesh'
         required: false
         type: boolean
         default: false
